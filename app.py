@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-import joblib
 import numpy as np
-import os
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -19,10 +17,25 @@ st.set_page_config(
 st.title("🏡 California Housing Price Predictor")
 st.write("Enter house and location details below to predict the median house value.")
 
-MODEL_FILE = "model.pkl"
-PIPELINE_FILE = "pipeline.pkl"
+@st.cache_resource
+def get_trained_model_and_pipeline():
+    housing = pd.read_csv("housing.csv")
+    housing['income_cat'] = pd.cut(
+        housing['median_income'],
+        bins=[0, 1.5, 3.0, 4.5, 6.0, np.inf],
+        labels=[1, 2, 3, 4, 5]
+    )
 
-def build_pipeline(num_attribs, cat_attribs):
+    split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    for train_index, _ in split.split(housing, housing['income_cat']):
+        housing = housing.loc[train_index].drop('income_cat', axis=1)
+
+    housing_labels = housing['median_house_value'].copy()
+    housing_features = housing.drop('median_house_value', axis=1)
+
+    num_attribs = housing_features.drop("ocean_proximity", axis=1).columns
+    cat_attribs = ["ocean_proximity"]
+
     num_pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler())
@@ -30,45 +43,20 @@ def build_pipeline(num_attribs, cat_attribs):
     cat_pipeline = Pipeline([
         ("onehot", OneHotEncoder(handle_unknown="ignore"))
     ])
-    return ColumnTransformer([
+
+    pipeline = ColumnTransformer([
         ("num", num_pipeline, num_attribs),
         ("cat", cat_pipeline, cat_attribs)
     ])
 
-@st.cache_resource
-def train_and_load():
-    if not (os.path.exists(MODEL_FILE) and os.path.exists(PIPELINE_FILE)):
-        with st.spinner("Training model for first-time startup... Please wait 10 seconds."):
-            housing = pd.read_csv("housing.csv")
-            housing['income_cat'] = pd.cut(
-                housing['median_income'],
-                bins=[0, 1.5, 3.0, 4.5, 6.0, np.inf],
-                labels=[1, 2, 3, 4, 5]
-            )
-            split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-            for train_index, _ in split.split(housing, housing['income_cat']):
-                housing = housing.loc[train_index].drop('income_cat', axis=1)
+    housing_prepared = pipeline.fit_transform(housing_features)
 
-            housing_labels = housing['median_house_value'].copy()
-            housing_features = housing.drop('median_house_value', axis=1)
+    model = RandomForestRegressor(n_estimators=30, max_depth=15, random_state=42)
+    model.fit(housing_prepared, housing_labels)
 
-            num_attribs = housing_features.drop("ocean_proximity", axis=1).columns
-            cat_attribs = ["ocean_proximity"]
-
-            pipeline = build_pipeline(num_attribs, cat_attribs)
-            housing_prepared = pipeline.fit_transform(housing_features)
-
-            model = RandomForestRegressor(n_estimators=30, max_depth=15, random_state=42)
-            model.fit(housing_prepared, housing_labels)
-
-            joblib.dump(model, MODEL_FILE)
-            joblib.dump(pipeline, PIPELINE_FILE)
-
-    model = joblib.load(MODEL_FILE)
-    pipeline = joblib.load(PIPELINE_FILE)
     return model, pipeline
 
-model, pipeline = train_and_load()
+model, pipeline = get_trained_model_and_pipeline()
 
 with st.form("housing_input_form"):
     st.subheader("📋 Input Property Features")
