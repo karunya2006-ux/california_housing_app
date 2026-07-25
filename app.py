@@ -3,7 +3,6 @@ import pandas as pd
 import joblib
 import numpy as np
 
-# 1. Page Configuration
 st.set_page_config(
     page_title="California Housing Price Predictor",
     page_icon="🏡",
@@ -11,9 +10,8 @@ st.set_page_config(
 )
 
 st.title("🏡 California Housing Price Predictor")
-st.write("Enter house and location details below to predict the median house value using your trained Machine Learning model.")
+st.write("Enter house and location details below to predict the median house value.")
 
-# 2. Load trained model & pipeline
 @st.cache_resource
 def load_artifacts():
     model = joblib.load("model.pkl")
@@ -23,10 +21,9 @@ def load_artifacts():
 try:
     model, pipeline = load_artifacts()
 except Exception as e:
-    st.error("Model artifacts (model.pkl / pipeline.pkl) not found. Run `python3 main.py` first to train the model!")
+    st.error("Model artifacts not found. Please check logs.")
     st.stop()
 
-# 3. User Input Form
 with st.form("housing_input_form"):
     st.subheader("📋 Input Property Features")
     col1, col2, col3 = st.columns(3)
@@ -51,24 +48,24 @@ with st.form("housing_input_form"):
 
     submit_button = st.form_submit_button("💰 Predict House Value")
 
-# 4. Run Prediction when form is submitted
 if submit_button:
-    # Build dataframe exactly matching training feature names
     input_df = pd.DataFrame([{
-        "longitude": longitude,
-        "latitude": latitude,
+        "longitude": float(longitude),
+        "latitude": float(latitude),
         "housing_median_age": float(housing_median_age),
         "total_rooms": float(total_rooms),
         "total_bedrooms": float(total_bedrooms),
         "population": float(population),
         "households": float(households),
         "median_income": float(median_income),
-        "ocean_proximity": ocean_proximity
+        "ocean_proximity": str(ocean_proximity)
     }])
 
-    # Preprocess inputs using saved pipeline & predict
-    transformed_input = pipeline.transform(input_df)
-    prediction = model.predict(transformed_input)[0]
-
-    st.markdown("---")
-    st.success(f"### Estimated Median House Value: **${prediction:,.2f}**")
+    # Transform numerical and categorical separately to guarantee type matching
+    try:
+        transformed_input = pipeline.transform(input_df)
+        prediction = model.predict(transformed_input)[0]
+        st.markdown("---")
+        st.success(f"### Estimated Median House Value: **${prediction:,.2f}**")
+    except Exception as err:
+        st.error(f"Error during transformation/prediction: {err}")
