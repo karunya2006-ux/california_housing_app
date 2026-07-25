@@ -1,7 +1,12 @@
 import streamlit as st
 import pandas as pd
-import joblib
-import os
+import numpy as np
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestRegressor
 
 st.set_page_config(
     page_title="California Housing Price Predictor",
@@ -12,20 +17,43 @@ st.set_page_config(
 st.title("🏡 California Housing Price Predictor")
 st.write("Enter house and location details below to predict the median house value.")
 
-MODEL_FILE = "model.pkl"
-PIPELINE_FILE = "pipeline.pkl"
-
 @st.cache_resource
-def load_model_and_pipeline():
-    model = joblib.load(MODEL_FILE)
-    pipeline = joblib.load(PIPELINE_FILE)
-    return model, pipeline
+def get_trained_model_and_pipeline():
+    housing = pd.read_csv("housing.csv")
+    housing['income_cat'] = pd.cut(
+        housing['median_income'],
+        bins=[0, 1.5, 3.0, 4.5, 6.0, np.inf],
+        labels=[1, 2, 3, 4, 5]
+    )
+    split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    for train_index, _ in split.split(housing, housing['income_cat']):
+        housing = housing.loc[train_index].drop('income_cat', axis=1)
 
-try:
-    model, pipeline = load_model_and_pipeline()
-except Exception as e:
-    st.error(f"Error loading model artifacts: {e}")
-    st.stop()
+    housing_labels = housing['median_house_value'].copy()
+    housing_features = housing.drop('median_house_value', axis=1)
+
+    num_attribs = housing_features.drop("ocean_proximity", axis=1).columns
+    cat_attribs = ["ocean_proximity"]
+
+    num_pipeline = Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ])
+    cat_pipeline = Pipeline([
+        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+    ])
+    full_pipeline = ColumnTransformer([
+        ("num", num_pipeline, num_attribs),
+        ("cat", cat_pipeline, cat_attribs)
+    ])
+
+    housing_prepared = full_pipeline.fit_transform(housing_features)
+    model = RandomForestRegressor(n_estimators=30, max_depth=15, random_state=42)
+    model.fit(housing_prepared, housing_labels)
+
+    return model, full_pipeline
+
+model, pipeline = get_trained_model_and_pipeline()
 
 with st.form("housing_input_form"):
     st.subheader("📋 Input Property Features")
