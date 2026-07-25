@@ -2,6 +2,10 @@
 
 An end-to-end Machine Learning web application built using **Scikit-Learn** and **Streamlit** to predict median California house values.
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://californiahousingapp-888m3y4ymzvrkv5tjw2ais.streamlit.app/)
+
+🔗 **Live Web App:** [https://californiahousingapp-888m3y4ymzvrkv5tjw2ais.streamlit.app/](https://californiahousingapp-888m3y4ymzvrkv5tjw2ais.streamlit.app/)
+
 ## 📌 Features
 - **Data Preprocessing & Model:** Built using `StratifiedShuffleSplit`, `ColumnTransformer`, `OneHotEncoder`, `StandardScaler`, and `RandomForestRegressor`.
 - **Interactive UI:** Web application powered by `Streamlit` allowing real-time parameter tuning and immediate price estimation.
